@@ -1,0 +1,555 @@
+﻿<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>A Jornada da Serpente - Python RPG</title>
+    
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    
+    <!-- Font Awesome para Ícones -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+
+    <!-- Google Fonts -->
+    <link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&family=Roboto+Mono:wght@400;700&display=swap" rel="stylesheet">
+
+    <style>
+        /* Estilos Customizados para Efeito RPG */
+        body {
+            background-color: #1a1b26; /* Cor de fundo estilo IDE Dark */
+            color: #c0caf5;
+            font-family: 'Roboto Mono', monospace;
+            overflow-x: hidden;
+        }
+
+        .rpg-font {
+            font-family: 'Press Start 2P', cursive;
+        }
+
+        /* Container do Mapa com Scroll Customizado */
+        .map-container {
+            background-image: radial-gradient(#24283b 15%, transparent 16%),
+            radial-gradient(#24283b 15%, transparent 16%);
+            background-size: 20px 20px;
+            background-position: 0 0, 10px 10px;
+            min-height: 100vh;
+            position: relative;
+        }
+
+        /* Estilo dos Nós (Fases) */
+        .level-node {
+            transition: all 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+            cursor: pointer;
+            z-index: 10;
+        }
+
+        .level-node:hover {
+            transform: scale(1.15) translateY(-5px);
+            filter: brightness(1.2);
+        }
+
+        /* Estados dos Nós */
+        .node-locked {
+            filter: grayscale(1) brightness(0.5);
+            cursor: not-allowed;
+            pointer-events: none;
+        }
+        
+        .node-unlocked {
+            box-shadow: 0 0 15px rgba(59, 130, 246, 0.6);
+            border-color: #3b82f6;
+        }
+
+        .node-completed {
+            box-shadow: 0 0 20px rgba(16, 185, 129, 0.8);
+            border-color: #10b981;
+            background: #064e3b;
+        }
+
+        /* Modal */
+        .modal-overlay {
+            backdrop-filter: blur(5px);
+            animation: fadeIn 0.3s ease-out;
+        }
+
+        .code-block {
+            background: #0f0f14;
+            border-left: 4px solid #f59e0b;
+            page-break-inside: avoid;
+        }
+
+        /* Animação do SVG (Trilha) */
+        .path-line {
+            stroke-dasharray: 1000;
+            stroke-dashoffset: 1000;
+            animation: dash 2s linear forwards;
+        }
+
+        @keyframes dash {
+            to { stroke-dashoffset: 0; }
+        }
+
+        @keyframes fadeIn {
+            from { opacity: 0; }
+            to { opacity: 1; }
+        }
+
+        @keyframes float {
+            0% { transform: translateY(0px); }
+            50% { transform: translateY(-10px); }
+            100% { transform: translateY(0px); }
+        }
+
+        .current-quest {
+            animation: float 3s ease-in-out infinite;
+            border: 2px solid #f59e0b;
+            box-shadow: 0 0 25px #f59e0b;
+        }
+
+        /* Scrollbar customizada */
+        ::-webkit-scrollbar {
+            width: 10px;
+        }
+        ::-webkit-scrollbar-track {
+            background: #1a1b26;
+        }
+        ::-webkit-scrollbar-thumb {
+            background: #565f89;
+            border-radius: 5px;
+        }
+    </style>
+</head>
+<body class="antialiased">
+
+    <!-- Header / HUD -->
+    <header class="fixed top-0 left-0 w-full bg-slate-900/90 border-b border-slate-700 z-50 px-4 py-3 flex justify-between items-center shadow-lg backdrop-blur-sm">
+        <div class="flex items-center gap-3">
+            <i class="fa-brands fa-python text-3xl text-yellow-400"></i>
+            <div>
+                <h1 class="rpg-font text-xs md:text-sm text-yellow-400">A Jornada da Serpente</h1>
+                <p class="text-xs text-slate-400">Lógica de Programação</p>
+            </div>
+        </div>
+        
+        <div class="flex items-center gap-4">
+            <div class="text-right hidden md:block">
+                <p class="text-xs text-slate-400">Progresso</p>
+                <div class="w-32 h-3 bg-slate-800 rounded-full mt-1 border border-slate-600 overflow-hidden">
+                    <div id="progress-bar" class="h-full bg-gradient-to-r from-blue-500 to-green-500 w-0 transition-all duration-500"></div>
+                </div>
+            </div>
+            <button onclick="resetProgress()" class="text-xs border border-red-500 text-red-400 hover:bg-red-500/10 px-3 py-1 rounded transition-colors" title="Reiniciar Jogo">
+                <i class="fa-solid fa-skull"></i> Reset
+            </button>
+        </div>
+    </header>
+
+    <!-- Área do Mapa -->
+    <main class="map-container relative pt-24 pb-20 flex flex-col items-center">
+        
+        <!-- SVG Layer para desenhar as linhas (Fica atrás dos nós) -->
+        <svg id="map-svg" class="absolute top-0 left-0 w-full h-full pointer-events-none z-0 overflow-visible">
+            <!-- Caminhos gerados via JS -->
+        </svg>
+
+        <!-- Container onde os nós serão injetados -->
+        <div id="nodes-container" class="relative w-full max-w-4xl min-h-[1200px] mx-auto z-10">
+            <!-- Os nós serão gerados aqui pelo JavaScript -->
+        </div>
+
+    </main>
+
+    <!-- Modal de Missão -->
+    <div id="quest-modal" class="fixed inset-0 z-[100] hidden flex items-center justify-center p-4 modal-overlay bg-black/80">
+        <div class="bg-slate-800 border-2 border-slate-600 rounded-lg max-w-2xl w-full shadow-2xl transform transition-all scale-100 relative overflow-hidden">
+            
+            <!-- Modal Header -->
+            <div class="bg-slate-900 p-4 border-b border-slate-700 flex justify-between items-center">
+                <h2 id="modal-title" class="rpg-font text-yellow-400 text-sm md:text-base">Nome da Missão</h2>
+                <button onclick="closeModal()" class="text-slate-400 hover:text-white transition-colors">
+                    <i class="fa-solid fa-xmark text-xl"></i>
+                </button>
+            </div>
+
+            <!-- Modal Body -->
+            <div class="p-6 max-h-[70vh] overflow-y-auto">
+                <div class="flex items-start gap-4 mb-6">
+                    <div class="bg-slate-700 p-3 rounded-lg hidden md:block">
+                        <i id="modal-icon" class="fa-solid fa-scroll text-3xl text-blue-400"></i>
+                    </div>
+                    <div>
+                        <h3 class="text-lg font-bold text-white mb-2">Objetivo:</h3>
+                        <p id="modal-desc" class="text-slate-300 leading-relaxed text-sm md:text-base">Descrição da missão...</p>
+                    </div>
+                </div>
+
+                <div class="mb-6">
+                    <h4 class="text-xs font-bold text-slate-500 uppercase mb-2">Pergaminho de Sabedoria (Código)</h4>
+                    <pre class="code-block p-4 rounded text-xs md:text-sm overflow-x-auto text-green-400 font-mono"><code id="modal-code">print("Hello World")</code></pre>
+                </div>
+
+                <div class="bg-blue-900/20 border border-blue-500/30 p-4 rounded mb-4">
+                    <h4 class="text-blue-400 font-bold text-sm mb-1"><i class="fa-solid fa-lightbulb"></i> Desafio Prático</h4>
+                    <p id="modal-challenge" class="text-sm text-slate-300">O que o usuário deve fazer mentalmente ou em sua IDE.</p>
+                </div>
+            </div>
+
+            <!-- Modal Footer -->
+            <div class="p-4 bg-slate-900 border-t border-slate-700 flex justify-end gap-3">
+                <button onclick="closeModal()" class="px-4 py-2 text-slate-400 hover:text-white text-sm transition-colors">Voltar</button>
+                <button onclick="completeQuest()" class="px-6 py-2 bg-green-600 hover:bg-green-500 text-white font-bold rounded shadow-lg hover:shadow-green-500/50 transition-all text-sm flex items-center gap-2">
+                    <i class="fa-solid fa-check"></i> Completar Missão
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Mensagem de Vitória (Toast) -->
+    <div id="victory-toast" class="fixed bottom-5 right-5 bg-green-600 text-white px-6 py-4 rounded shadow-2xl transform translate-y-24 transition-transform duration-300 z-[110] flex items-center gap-3">
+        <i class="fa-solid fa-trophy text-yellow-300 text-xl"></i>
+        <div>
+            <h4 class="font-bold text-sm">Nível Completado!</h4>
+            <p class="text-xs">O próximo desafio foi desbloqueado.</p>
+        </div>
+    </div>
+
+    <script>
+        // --- Dados da Trilha de Aprendizagem (RPG Data) ---
+        const gameLevels = [
+            {
+                id: 1,
+                title: "O Despertar (Hello World)",
+                x: 50, y: 5, // Posição em porcentagem (Left, Top)
+                icon: "fa-solid fa-power-off",
+                desc: "Toda jornada começa com um único passo. Sua primeira tarefa é fazer o computador falar. Em Python, usamos a função <code>print()</code> para enviar mensagens para a saída padrão.",
+                code: `print("Olá, Aventureiro!")\nprint("Sua jornada começa agora.")`,
+                challenge: "Abra seu editor Python e faça o script exibir seu nome.",
+                unlocks: [2]
+            },
+            {
+                id: 2,
+                title: "Os Ecos do Abismo (Input)",
+                x: 20, y: 18, // Zigue-zague para esquerda
+                icon: "fa-ear-listen",
+                desc: "A serpente acordou, mas ela é surda às suas necessidades. Você precisa ensinar a ela o feitiço da escuta para que ela possa interagir.\nA Magia da Entrada\nPara interagir, usamos o comando <code>input()</code>. Porém, um som ouvido logo se perde se não for guardado.\nO Receptáculo (Variáveis)\nImagine uma caixa mágica com um rótulo. Em Python, chamamos isso de <strong>Variável</strong>. É onde guardamos o que o usuário digita.",
+                code:`# 'nome_heroi' é a Variável (o Receptáculo)\nnome_heroi = input("Qual seu nome, viajante? ")\nprint("Saudações, ",nome_heroi)`,
+                challenge:"Desafio: Crie um script que use input() para perguntar o nome do jogador e armazene-o em uma variável.",
+                unlocks: [3]
+            },
+            {
+                id: 3,
+                title: "O Vale das Variáveis",
+                x: 100, y: 20,
+                icon: "fa-solid fa-box-open",
+                desc: "Você encontrou itens mágicos, mas precisa guardá-los. Variáveis são como caixas onde armazenamos dados (números, textos, booleanos) para usar depois.",
+                code: `# Guardando dados\nhero_name = "Kael"\nlevel = 1\nhealth = 100.5\nis_alive = True\n\nprint(f"Herói: {hero_name}, Nível: {level}")`,
+                challenge: "Crie variáveis para 'ataque' e 'defesa' e exiba a soma delas.",
+                unlocks: [4]
+            },
+            {
+                id: 4,
+                title: 'A Alquimia da Matéria (Tipos)',
+                x: 80, y: 30, // Zigue-zague para direita
+                icon: 'fa-shapes',
+                desc: 'A serpente agora possui memória, mas está confusa. Ela tenta somar "Maçã" com "Espada". Você deve ensinar a ela a natureza das essências.\nOs Elementos Primordiais\nEm Python, cada dado tem um "Tipo" (Type). Misturar tipos incompatíveis causa o caos.\nstr (String):Texto, pergaminhos. Ex: "Mago"\nint (Inteiro):Números puros. Ex: 10 de Ouro\nfloat (Real): Números quebrados. 10.5 de Dano\nbool (Booleano):Verdadeiro ou Falso.\n<strong>Nota:</strong> O <code>input()</code> sempre devolve <strong>Texto (str)</strong>!',
+                code:`100 # int\n"Gandalf" # str\n# Tentar somar vida + nome daria erro!\nprint(type(vida))`,
+                challenge: "Crie variáveis 'força' e 'magia' e exiba a multiplicação delas. ",
+                unlocks: [5]
+            },
+            {
+                id: 5,
+                title: "O Inventário (Listas)",
+                x: 40, y: 45, // x:60 y:85
+                icon: "fa-solid fa-suitcase",
+                desc: "Sua mochila está cheia. Listas permitem armazenar múltiplos itens em uma única variável ordenadamente. Você pode adicionar, remover e acessar itens pelo índice.",
+                code: `inventory = ["Espada", "Escudo", "Poção"]\n\n# Adicionando item\ninventory.append("Mapa")\n\n# Acessando o primeiro item\nprint(f"Equipado: {inventory[0]}")`,
+                challenge: "Crie uma lista de inimigos. Remova o primeiro inimigo da lista após 'derrotá-lo'.",
+                unlocks: [6]
+            },
+            {
+                id: 6,
+                title: "A Encruzilhada (If/Else)",
+                x: 70, y: 58,
+                icon: "fa-solid fa-signs-post",
+                desc: "O caminho se divide. Se você for forte, vá para a esquerda; senão, vá para a direita. As condicionais <code>if</code>, <code>elif</code> e <code>else</code> controlam o fluxo do destino.",
+                code: `monster_level = 5\nmy_level = 3\n\nif my_level >= monster_level:\n    print("Você venceu o monstro!")\nelse:\n    print("Fuga tática necessária!")`,
+                challenge: "Escreva uma condição que verifica se a vida (health) é menor que 0. Se for, imprima 'Game Over'.",
+                unlocks: [7]
+            },
+            {
+                id: 7,
+                title: "A Floresta da Iteração (For)",
+                x: 25, y: 72,
+                icon: "fa-solid fa-list-ol",
+                desc: "Uma horda de inimigos aparece. Você precisa atacar cada um deles, um por um. O loop <code>for</code> é perfeito para percorrer listas ou sequências numéricas.",
+                code: `# Usando range para repetir 5 vezes\nfor i in range(5):\n    print(f"Ataque de espada número {i+1}!")`,
+                challenge: "Use um loop 'for' para somar todos os números de 0 a 10.",
+                unlocks: [8]
+            },
+            {
+                id: 8,
+                title: "O Loop do Tempo (While)",
+                x: 60, y: 85,
+                icon: "fa-solid fa-rotate",
+                desc: "Você está preso em um feitiço temporal! O <code>while</code> repete um bloco de código enquanto uma condição for verdadeira. Cuidado com loops infinitos!",
+                code: `potions = 3\n\nwhile potions > 0:\n    print(f"Usando poção... Restam {potions-1}")\n    potions = potions - 1\n\nprint("Acabaram as poções!")`,
+                challenge: "Crie um loop que conta de 10 até 0 (contagem regressiva).",
+                unlocks: [9]
+            },
+            ,
+            {
+                id: 9,
+                title: "A Forja das Funções",
+                x: 90, y: 96,
+                icon: "fa-solid fa-hammer",
+                desc: "Você aprendeu golpes repetitivos. Hora de criar uma técnica especial! Funções (<code>def</code>) são blocos de código reutilizáveis que organizam sua lógica.",
+                code: `def cast_fireball(damage):\n    print(f"Lançando bola de fogo! Dano: {damage}")\n\n# Chamando a função\ncast_fireball(50)\ncast_fireball(100)`,
+                challenge: "Crie uma função que receba dois números e retorne o maior deles.",
+                unlocks: [10]
+            },
+            {
+                id: 10,
+                title: "O Dragão Final (Projeto)",
+                x: 50, y: 96,
+                icon: "fa-solid fa-dragon",
+                desc: "O desafio final. Combine tudo o que aprendeu: Variáveis, Condicionais, Loops e Funções para criar um mini sistema de batalha.",
+                code: `import random\n\ndef dragon_battle():\n    dragon_hp = 100\n    while dragon_hp > 0:\n        dmg = random.randint(10, 30)\n        dragon_hp -= dmg\n        print(f"Você causou {dmg} de dano!")\n    print("O Dragão caiu!")\n\ndragon_battle()`,
+                challenge: "Copie o código, adicione uma variável para a vida do Jogador e faça o dragão atacar de volta!",
+                unlocks: []
+            }
+        ];
+
+        // --- Estado do Jogo ---
+        let playerProgress = {
+            completed: [], // IDs dos níveis completados
+            unlocked: [1]  // IDs dos níveis desbloqueados
+        };
+
+        let currentActiveLevelId = null;
+
+        // --- Inicialização ---
+        function initGame() {
+            loadProgress();
+            renderMap();
+            window.addEventListener('resize', () => {
+                drawPaths(); // Redesenha as linhas ao redimensionar
+            });
+        }
+
+        // --- Gestão de Progresso (LocalStorage) ---
+        function loadProgress() {
+            const saved = localStorage.getItem('rpg_python_progress');
+            if (saved) {
+                playerProgress = JSON.parse(saved);
+            }
+            updateProgressBar();
+        }
+
+        function saveProgress() {
+            localStorage.setItem('rpg_python_progress', JSON.stringify(playerProgress));
+            updateProgressBar();
+        }
+
+        function resetProgress() {
+            if(confirm("Deseja realmente reiniciar toda a sua jornada?")) {
+                playerProgress = { completed: [], unlocked: [1] };
+                saveProgress();
+                renderMap();
+            }
+        }
+
+        function updateProgressBar() {
+            const total = gameLevels.length;
+            const completedCount = playerProgress.completed.length;
+            const percentage = (completedCount / total) * 100;
+            document.getElementById('progress-bar').style.width = `${percentage}%`;
+        }
+
+        // --- Renderização do Mapa ---
+        function renderMap() {
+            const container = document.getElementById('nodes-container');
+            container.innerHTML = ''; // Limpa
+
+            gameLevels.forEach(level => {
+                const isUnlocked = playerProgress.unlocked.includes(level.id);
+                const isCompleted = playerProgress.completed.includes(level.id);
+                const isCurrent = isUnlocked && !isCompleted;
+
+                // Elemento do Nó
+                const node = document.createElement('div');
+                
+                // Classes base
+                let classes = "level-node absolute w-16 h-16 md:w-20 md:h-20 rounded-full border-4 flex items-center justify-center bg-slate-800 transition-all duration-300 ";
+                
+                // Classes de estado
+                if (isCompleted) classes += "node-completed border-emerald-500 text-emerald-100";
+                else if (isUnlocked) classes += "node-unlocked border-blue-500 text-blue-100 bg-slate-700";
+                else classes += "node-locked border-slate-600 text-slate-600";
+
+                if (isCurrent) classes += " current-quest";
+
+                node.className = classes;
+                
+                // Posicionamento
+                // Em telas pequenas (mobile), ignoramos um pouco o X para centralizar mais, ou mantemos um zigzag menor
+                // Usaremos lógica inline style para Top/Left baseada no JSON
+                node.style.top = `${level.y}%`;
+                
+                // Lógica simples de responsividade no JS para o Left
+                const isMobile = window.innerWidth < 768;
+                const finalX = isMobile ? (level.id % 2 === 0 ? 65 : 35) : level.x; // Zigzag simples no mobile
+                node.style.left = `${finalX}%`;
+                node.style.transform = "translate(-50%, -50%)"; // Centraliza no ponto exato
+
+                node.id = `node-${level.id}`;
+                node.innerHTML = `<i class="${level.icon} text-xl md:text-2xl"></i>`;
+                
+                // Tooltip / Label
+                const label = document.createElement('div');
+                label.className = `absolute -bottom-8 md:-bottom-10 left-1/2 transform -translate-x-1/2 whitespace-nowrap text-[10px] md:text-xs font-bold px-2 py-1 rounded bg-slate-900 border border-slate-700 shadow-md ${isUnlocked ? 'text-white' : 'text-slate-600'}`;
+                label.innerText = `Nvl ${level.id}: ${level.title.split('(')[0]}`; // Nome curto
+                node.appendChild(label);
+
+                // Evento de Clique
+                node.onclick = () => {
+                    if (isUnlocked) openLevelModal(level);
+                };
+
+                container.appendChild(node);
+            });
+
+            // Após colocar os nós no DOM, desenhamos as linhas
+            // Timeout pequeno para garantir renderização
+            setTimeout(drawPaths, 50);
+        }
+
+        // --- Desenhar Linhas (SVG) ---
+        function drawPaths() {
+            const svg = document.getElementById('map-svg');
+            svg.innerHTML = ''; // Limpa linhas anteriores
+
+            const containerRect = document.getElementById('nodes-container').getBoundingClientRect();
+
+            gameLevels.forEach((level, index) => {
+                // Se não for o último, desenha linha para o próximo
+                // Lógica simplificada: conecta sequencialmente (1->2, 2->3)
+                // Na estrutura de dados, 'unlocks' define o próximo, mas aqui assumiremos linearidade para o desenho visual principal
+                
+                if (index < gameLevels.length - 1) {
+                    const nextLevelId = level.id + 1; // Assumindo linearidade 1,2,3...
+                    const currNode = document.getElementById(`node-${level.id}`);
+                    const nextNode = document.getElementById(`node-${nextLevelId}`);
+
+                    if (currNode && nextNode) {
+                        const pos1 = getCenterPosition(currNode, containerRect);
+                        const pos2 = getCenterPosition(nextNode, containerRect);
+
+                        // Cria a linha
+                        const path = document.createElementNS("http://www.w3.org/2000/svg", "path");
+                        
+                        // Estado da linha (colorida se o nível de origem estiver completo)
+                        const isPathActive = playerProgress.completed.includes(level.id);
+                        const color = isPathActive ? "#10b981" : "#475569"; // Verde ou Cinza
+                        const width = isPathActive ? 4 : 2;
+
+                        // Curva de Bézier cúbica para suavidade
+                        const d = `M ${pos1.x} ${pos1.y} C ${pos1.x} ${pos1.y + 50}, ${pos2.x} ${pos2.y - 50}, ${pos2.x} ${pos2.y}`;
+
+                        path.setAttribute("d", d);
+                        path.setAttribute("stroke", color);
+                        path.setAttribute("stroke-width", width);
+                        path.setAttribute("fill", "none");
+                        path.setAttribute("stroke-linecap", "round");
+                        if(isPathActive) path.classList.add('path-line'); // Animação
+
+                        svg.appendChild(path);
+                    }
+                }
+            });
+        }
+
+        function getCenterPosition(element, containerRect) {
+            const rect = element.getBoundingClientRect();
+            return {
+                x: rect.left + rect.width / 2 - containerRect.left, // Relativo ao container
+                y: rect.top + rect.height / 2 - containerRect.top
+            };
+        }
+
+        // --- Sistema de Modal ---
+        const modal = document.getElementById('quest-modal');
+        const modalTitle = document.getElementById('modal-title');
+        const modalDesc = document.getElementById('modal-desc');
+        const modalCode = document.getElementById('modal-code');
+        const modalChallenge = document.getElementById('modal-challenge');
+        const modalIcon = document.getElementById('modal-icon');
+
+        function openLevelModal(level) {
+            currentActiveLevelId = level.id;
+            
+            modalTitle.innerText = level.title;
+            modalDesc.innerHTML = level.desc;
+            modalCode.innerText = level.code;
+            modalChallenge.innerText = level.challenge;
+            modalIcon.className = `${level.icon} text-3xl text-blue-400`;
+
+            // Botão muda se já completou
+            const btn = document.querySelector('#quest-modal button[onclick="completeQuest()"]');
+            if(playerProgress.completed.includes(level.id)) {
+                btn.innerHTML = '<i class="fa-solid fa-rotate-left"></i> Refazer';
+                btn.className = "px-6 py-2 bg-slate-600 hover:bg-slate-500 text-white font-bold rounded shadow-lg transition-all text-sm flex items-center gap-2";
+            } else {
+                btn.innerHTML = '<i class="fa-solid fa-check"></i> Completar Missão';
+                btn.className = "px-6 py-2 bg-green-600 hover:bg-green-500 text-white font-bold rounded shadow-lg hover:shadow-green-500/50 transition-all text-sm flex items-center gap-2";
+            }
+
+            modal.classList.remove('hidden');
+        }
+
+        function closeModal() {
+            modal.classList.add('hidden');
+            currentActiveLevelId = null;
+        }
+
+        function completeQuest() {
+            if (!currentActiveLevelId) return;
+
+            // Encontrar nível atual
+            const level = gameLevels.find(l => l.id === currentActiveLevelId);
+            
+            // Adicionar aos completados se não estiver
+            if (!playerProgress.completed.includes(level.id)) {
+                playerProgress.completed.push(level.id);
+                showToast();
+            }
+
+            // Desbloquear próximos
+            if (level.unlocks && level.unlocks.length > 0) {
+                level.unlocks.forEach(unlockId => {
+                    if (!playerProgress.unlocked.includes(unlockId)) {
+                        playerProgress.unlocked.push(unlockId);
+                    }
+                });
+            }
+
+            saveProgress();
+            renderMap(); // Atualiza visual
+            closeModal();
+        }
+
+        // --- UI Auxiliar ---
+        function showToast() {
+            const toast = document.getElementById('victory-toast');
+            toast.classList.remove('translate-y-24');
+            setTimeout(() => {
+                toast.classList.add('translate-y-24');
+            }, 3000);
+        }
+
+        // Start
+        initGame();
+
+    </script>
+</body>
+</html>
