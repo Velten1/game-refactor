@@ -1,68 +1,115 @@
-:root {
-  font-family: system-ui, Avenir, Helvetica, Arial, sans-serif;
-  line-height: 1.5;
-  font-weight: 400;
-
-  color-scheme: light dark;
-  color: rgba(255, 255, 255, 0.87);
-  background-color: #242424;
-
-  font-synthesis: none;
-  text-rendering: optimizeLegibility;
+@import "tailwindcss";
+/* Estilos Customizados para Efeito RPG */
+ body {
+  background-color: #1a1b26; /* Cor de fundo estilo IDE Dark */
+  color: #c0caf5;
+  font-family: 'Roboto Mono', monospace;
+  overflow-x: hidden;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
 }
 
-a {
-  font-weight: 500;
-  color: #646cff;
-  text-decoration: inherit;
-}
-a:hover {
-  color: #535bf2;
+@layer utilities {
+  .line-clamp-2 {
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+  }
 }
 
-body {
-  margin: 0;
-  display: flex;
-  place-items: center;
-  min-width: 320px;
+.rpg-font {
+  font-family: 'Press Start 2P', cursive;
+}
+
+/* Container do Mapa com Scroll Customizado */
+.map-container {
+  background-image: radial-gradient(#24283b 15%, transparent 16%),
+  radial-gradient(#24283b 15%, transparent 16%);
+  background-size: 20px 20px;
+  background-position: 0 0, 10px 10px;
   min-height: 100vh;
+  position: relative;
 }
 
-h1 {
-  font-size: 3.2em;
-  line-height: 1.1;
-}
-
-button {
-  border-radius: 8px;
-  border: 1px solid transparent;
-  padding: 0.6em 1.2em;
-  font-size: 1em;
-  font-weight: 500;
-  font-family: inherit;
-  background-color: #1a1a1a;
+/* Estilo dos Nós (Fases) */
+.level-node {
+  transition: all 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
   cursor: pointer;
-  transition: border-color 0.25s;
-}
-button:hover {
-  border-color: #646cff;
-}
-button:focus,
-button:focus-visible {
-  outline: 4px auto -webkit-focus-ring-color;
+  z-index: 10;
 }
 
-@media (prefers-color-scheme: light) {
-  :root {
-    color: #213547;
-    background-color: #ffffff;
-  }
-  a:hover {
-    color: #747bff;
-  }
-  button {
-    background-color: #f9f9f9;
-  }
+.level-node:hover {
+  transform: scale(1.15) translateY(-5px);
+  filter: brightness(1.2);
+}
+
+/* Estados dos Nós */
+.node-locked {
+  filter: grayscale(1) brightness(0.5);
+  cursor: not-allowed;
+  pointer-events: none;
+}
+
+.node-unlocked {
+  box-shadow: 0 0 15px rgba(59, 130, 246, 0.6);
+  border-color: #3b82f6;
+}
+
+.node-completed {
+  box-shadow: 0 0 20px rgba(16, 185, 129, 0.8);
+  border-color: #10b981;
+  background: #064e3b;
+}
+
+/* Modal */
+.modal-overlay {
+  backdrop-filter: blur(5px);
+  animation: fadeIn 0.3s ease-out;
+}
+
+.code-block {
+  background: #0f0f14;
+  border-left: 4px solid #f59e0b;
+  page-break-inside: avoid;
+}
+
+/* Animação do SVG (Trilha) */
+.path-line {
+  stroke-dasharray: 1000;
+  stroke-dashoffset: 1000;
+  animation: dash 2s linear forwards;
+}
+
+@keyframes dash {
+  to { stroke-dashoffset: 0; }
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@keyframes float {
+  0% { transform: translateY(0px); }
+  50% { transform: translateY(-10px); }
+  100% { transform: translateY(0px); }
+}
+
+.current-quest {
+  animation: float 3s ease-in-out infinite;
+  border: 2px solid #f59e0b;
+  box-shadow: 0 0 25px #f59e0b;
+}
+
+/* Scrollbar customizada */
+::-webkit-scrollbar {
+  width: 10px;
+}
+::-webkit-scrollbar-track {
+  background: #1a1b26;
+}
+::-webkit-scrollbar-thumb {
+  background: #565f89;
+  border-radius: 5px;
 }
