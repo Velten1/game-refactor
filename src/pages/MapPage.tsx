@@ -1,5 +1,22 @@
+import Hud from '../components/hud/Hud.tsx';
+import {gameLevels} from '../data/gameLevels.ts';
+import { useState } from 'react';
+
 const MapPage = () => {
+
+    const [completedLevels, setCompletedLevels] = useState<number[]>([]);
+    const [unlockedLevels, setUnlockedLevels] = useState([1]);
+    const progressPercent = (completedLevels.length / gameLevels.length) * 100;
+    const handleReset = () => {
+        if (confirm('Deseja realmente reiniciar toda a sua jornada?')) {
+            setCompletedLevels([]);
+            setUnlockedLevels([1]);
+            localStorage.removeItem('rpg_python_progress');
+        }
+    }    
     return (
+        <>
+        <Hud progressPercent={progressPercent} onReset={handleReset} />
         <main className="map-container relative pt-24 pb-20 flex flex-col items-center">
         
         <svg id="map-svg" className="absolute top-0 left-0 w-full h-full pointer-events-none z-0 overflow-visible">
@@ -15,6 +32,7 @@ const MapPage = () => {
             </div>
         </div>
     </main>
+    </>
     )
 }
 
