@@ -8,7 +8,7 @@ interface DefaultLayoutProps {
 
 const DefaultLayout = ({ children }: DefaultLayoutProps) => {
   return (
-    <div className="min-h-screen flex flex-col bg-gradient-to-br from-light via-blue/20 to-light">
+    <div className="min-h-screen flex flex-col">
       <Hud />
       <main className="flex-1">
         {children}
