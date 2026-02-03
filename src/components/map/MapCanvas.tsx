@@ -34,7 +34,7 @@ const MapCanvas = ({ levels, completedLevels, unlockedLevels, onLevelClick }: Ma
                 levels={levels}
                 completedLevels={completedLevels}
             />
-            <div className="relative w-full h-full">
+
                 {levels.map((level) => (
                     <LevelNode
                         key={level.id}
@@ -43,7 +43,6 @@ const MapCanvas = ({ levels, completedLevels, unlockedLevels, onLevelClick }: Ma
                         onClick={onLevelClick}
                     />
                 ))}
-            </div>
         </div>
     );
 }
